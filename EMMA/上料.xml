@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="MainTree">
+    <Parallel failure_count="1"
+              success_count="1">
+      <SubTree ID="global"
+               _autoremap="true"/>
+      <SequenceWithMemory>
+        <SubTree ID="enter"
+                 _autoremap="true"/>
+        <SubTree ID="loading"
+                 _autoremap="true"/>
+        <SubTree ID="exit"
+                 _autoremap="true"/>
+      </SequenceWithMemory>
+    </Parallel>
+  </BehaviorTree>
+
+  <BehaviorTree ID="enter">
+    <Sequence>
+      <Script code="sresult:= &quot;1&quot;"/>
+      <Script code="stop:= 0"/>
+      <Lift cmd="drop"
+            lift_target_position=""
+            errorMsg="{errorMsg}"/>
+      <Parallel failure_count="1"
+                success_count="1">
+        <RetryUntilSuccessful num_attempts="-1">
+          <ForceFailure>
+            <EndDistCheck max_threshold="100"
+                          min_threshold="-100"
+                          current_dist="{current_dist}"
+                          errorMsg="{errorMsg}"/>
+          </ForceFailure>
+        </RetryUntilSuccessful>
+        <ReactiveSequence>
+          <ServoStatus errorMsg="{errorMsg}"
+                       servo_status="{servo_status}"/>
+          <Script code="dist_to_obstacle:= current_dist - prepare_dist"/>
+          <Parallel failure_count="1"
+                    success_count="3">
+            <SequenceWithMemory>
+              <ReactiveSequence>
+                <Precondition else="SUCCESS"
+                              if="sresult == &quot;2&quot;">
+                  <AlwaysFailure/>
+                </Precondition>
+                <Script code="sresult:= &quot;1&quot;"/>
+                <RetryUntilSuccessful num_attempts="-1">
+                  <AsyncSequence>
+                    <ReportSchedule schedule_report_action="report_enter_done"
+                                    schedule_report_extra_data=""
+                                    errorMsg="{errorMsg}"
+                                    schedule_report_result="{sresult}"/>
+                    <Switch2 case_1="0"
+                             case_2="1"
+                             variable="{sresult}">
+                      <AlwaysFailure/>
+                      <AlwaysSuccess/>
+                      <AlwaysFailure/>
+                    </Switch2>
+                  </AsyncSequence>
+                </RetryUntilSuccessful>
+              </ReactiveSequence>
+              <SelectServoMode action_args="{action}"
+                               servo_mode="{id}"
+                               errorMsg="{errorMsg}"/>
+              <SequenceWithMemory>
+                <RetryUntilSuccessful num_attempts="-1">
+                  <EndDistCheck max_threshold="{async_start_dist}"
+                                min_threshold="-100"
+                                current_dist="{current_dist}"
+                                errorMsg="{errorMsg}"/>
+                </RetryUntilSuccessful>
+                <Switch4 case_1="100"
+                         case_2="010"
+                         case_3="001"
+                         case_4="101"
+                         variable="{id}">
+                  <Fallback>
+                    <LaserServo action_args="{action}"
+                                station_args="{stations}"
+                                current_dist="{current_dist}"
+                                servo_cancel_flag="{servo_cancel_flag}"
+                                teaching_args="{teach}"
+                                shelf_name_by_dispatch="{shelf_name_by_dispatch}"
+                                errorMsg="{errorMsg}"/>
+                    <RaiseException error_id="603204"
+                                    error_level="3"
+                                    error_name="error/servo/laser_servo_failed"
+                                    error_details="激光伺服失败"
+                                    errorMsg="{errorMsg}"/>
+                  </Fallback>
+                  <Fallback>
+                    <DiscreteServo action_args="{action}"
+                                   station_args="{stations}"
+                                   current_dist="{current_dist}"
+                                   servo_cancel_flag="{servo_cancel_flag}"
+                                   stage="in"
+                                   errorMsg="{errorMsg}"/>
+                    <RaiseException error_id="603206"
+                                    error_level="3"
+                                    error_name="error/servo/discrete_qr_servo_failed"
+                                    error_details="离散二维码伺服失败"
+                                    errorMsg="{errorMsg}"/>
+                  </Fallback>
+                  <Fallback>
+                    <VisualServo action_args="{action}"
+                                 station_args="{stations}"
+                                 servo_cancel_flag="{servo_cancel_flag}"
+                                 target_position_type="in"
+                                 errorMsg="{errorMsg}"/>
+                    <RaiseException error_id="603205"
+                                    error_level="3"
+                                    error_name="error/servo/vision_servo_failed"
+                                    error_details="视觉伺服失败"
+                                    errorMsg="{errorMsg}"/>
+                  </Fallback>
+                  <Fallback>
+                    <ShelfServo action_args="{action}"
+                                current_dist="{current_dist}"
+                                shelf_servo_teaching_result="{teach}"
+                                station_args="{stations}"
+                                errorMsg="{errorMsg}"
+                                servo_cancel_flag="{servo_cancel_flag}"/>
+                    <RaiseException error_id="603207"
+                                    error_level="3"
+                                    error_name="error/servo/shelf_servo_failed"
+                                    error_details="货架伺服失败"
+                                    errorMsg="{errorMsg}"/>
+                  </Fallback>
+                  <RaiseException error_id="603201"
+                                  error_level="3"
+                                  error_name="error/servo/type_not_found"
+                                  error_details="没有对应的伺服类型"
+                                  errorMsg="{errorMsg}"/>
+                </Switch4>
+              </SequenceWithMemory>
+            </SequenceWithMemory>
+            <DecelerateNavi obs_dist="{dist_to_obstacle}"
+                            decelerate_stop="{stop}"
+                            err_obs_dist="0.02"
+                            errorMsg="{errorMsg}"/>
+            <Sequence>
+              <RetryUntilSuccessful num_attempts="-1">
+                <Precondition else="FAILURE"
+                              if="servo_status == 2">
+                  <AlwaysSuccess/>
+                </Precondition>
+              </RetryUntilSuccessful>
+              <SpeedManager highest_priority_speed="iplus_servo"
+                            reset_priority="false"
+                            errorMsg="{errorMsg}"/>
+              <Script code="stop:= 1"/>
+              <Fallback>
+                <NavStop errorMsg="{errorMsg}"/>
+                <RaiseException error_id="603201"
+                                error_level="3"
+                                error_name="error/servo/type_not_found"
+                                error_details="停止导航失败"
+                                errorMsg="{errorMsg}"/>
+              </Fallback>
+              <SaySomething message="导航停止"/>
+            </Sequence>
+          </Parallel>
+        </ReactiveSequence>
+      </Parallel>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="exit">
+    <Parallel failure_count="1"
+              success_count="2">
+      <DecelerateNavi obs_dist="0"
+                      decelerate_stop="{stop}"
+                      err_obs_dist="0.02"
+                      errorMsg="{errorMsg}"/>
+      <Sequence>
+        <SaySomething message="准备接收导航"/>
+        <NoticeScheduleAndWait wait_timeout="60"
+                               errorMsg="{errorMsg}"/>
+        <Fallback>
+          <Precondition else="FAILURE"
+                        if="id == &quot;010&quot;">
+            <Sequence>
+              <Parallel failure_count="1"
+                        success_count="2">
+                <Fallback>
+                  <DiscreteServo action_args="{action}"
+                                 station_args="{stations}"
+                                 current_dist="{current_dist}"
+                                 servo_cancel_flag="{servo_cancel_flag}"
+                                 stage="out"
+                                 errorMsg="{errorMsg}"/>
+                  <RaiseException error_id="603206"
+                                  error_level="3"
+                                  error_name="error/servo/discrete_qr_servo_failed"
+                                  error_details="离散二维码伺服失败"
+                                  errorMsg="{errorMsg}"/>
+                </Fallback>
+                <Sequence>
+                  <RetryUntilSuccessful num_attempts="-1">
+                    <Sequence>
+                      <ServoStatus errorMsg="{errorMsg}"
+                                   servo_status="{servo_status}"/>
+                      <Precondition else="FAILURE"
+                                    if="servo_status == 2">
+                        <AlwaysSuccess/>
+                      </Precondition>
+                    </Sequence>
+                  </RetryUntilSuccessful>
+                  <SpeedManager highest_priority_speed="iplus_servo"
+                                reset_priority="true"
+                                errorMsg="{errorMsg}"/>
+                </Sequence>
+              </Parallel>
+              <Script code="stop:= 1"/>
+            </Sequence>
+          </Precondition>
+          <Precondition else="FAILURE"
+                        if="id == &quot;001&quot;">
+            <Sequence>
+              <Parallel failure_count="1"
+                        success_count="2">
+                <Fallback>
+                  <VisualServo action_args="{action}"
+                               station_args="{stations}"
+                               servo_cancel_flag="{servo_cancel_flag}"
+                               target_position_type="out"
+                               errorMsg="{errorMsg}"/>
+                  <RaiseException error_id="603205"
+                                  error_level="3"
+                                  error_name="error/servo/vision_servo_failed"
+                                  error_details="视觉伺服失败"
+                                  errorMsg="{errorMsg}"/>
+                </Fallback>
+                <Sequence>
+                  <RetryUntilSuccessful num_attempts="-1">
+                    <Sequence>
+                      <ServoStatus errorMsg="{errorMsg}"
+                                   servo_status="{servo_status}"/>
+                      <Precondition else="FAILURE"
+                                    if="servo_status == 2">
+                        <AlwaysSuccess/>
+                      </Precondition>
+                    </Sequence>
+                  </RetryUntilSuccessful>
+                  <SpeedManager highest_priority_speed="iplus_servo"
+                                reset_priority="true"
+                                errorMsg="{errorMsg}"/>
+                </Sequence>
+              </Parallel>
+              <Script code="stop:= 1"/>
+            </Sequence>
+          </Precondition>
+          <Sequence>
+            <Script code="stop:= 1"/>
+            <HeadFixedNavigator set_heading="true"
+                                errorMsg="{errorMsg}"/>
+            <RetryUntilSuccessful num_attempts="-1">
+              <StartDistCheck min_threshold="2"
+                              max_threshold="100"
+                              errorMsg="{errorMsg}"
+                              current_dist="{current_dist}"/>
+            </RetryUntilSuccessful>
+            <HeadFixedNavigator set_heading="false"
+                                errorMsg="{errorMsg}"/>
+          </Sequence>
+        </Fallback>
+      </Sequence>
+    </Parallel>
+  </BehaviorTree>
+
+  <BehaviorTree ID="global">
+    <Parallel failure_count="1"
+              success_count="1">
+      <Inverter>
+        <RetryUntilSuccessful num_attempts="-1">
+          <Inverter>
+            <ResetEStopStatusCheck station_args="{stations}"
+                                   dist_to_target="{dist_to_sham}"
+                                   errorMsg="{errorMsg}"/>
+          </Inverter>
+        </RetryUntilSuccessful>
+      </Inverter>
+    </Parallel>
+  </BehaviorTree>
+
+  <BehaviorTree ID="loading">
+    <Sequence>
+      <SpeedManager highest_priority_speed=""
+                    reset_priority="true"
+                    errorMsg="{errorMsg}"/>
+      <Fallback>
+        <Lift cmd="rise"
+              lift_target_position=""
+              errorMsg="{errorMsg}"/>
+        <RaiseException error_id="603203"
+                        error_level="4"
+                        error_name="error/lift/load_failed"
+                        error_details="载货举升失败"
+                        errorMsg="{errorMsg}"/>
+      </Fallback>
+      <LoadTemplate station_args="{stations}"
+                    errorMsg="{errorMsg}"/>
+      <SaySomething message="载货完成"/>
+      <Script code="stop:= 0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="DecelerateNavi"
+            editable="true">
+      <input_port name="obs_dist"/>
+      <input_port name="decelerate_stop"/>
+      <input_port name="err_obs_dist"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="DiscreteServo"
+            editable="true">
+      <input_port name="action_args"/>
+      <input_port name="station_args"/>
+      <input_port name="current_dist"/>
+      <input_port name="servo_cancel_flag"/>
+      <input_port name="stage"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="EndDistCheck"
+            editable="true">
+      <input_port name="max_threshold"/>
+      <input_port name="min_threshold"/>
+      <output_port name="current_dist"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="HeadFixedNavigator"
+            editable="true">
+      <input_port name="set_heading"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="LaserServo"
+            editable="true">
+      <input_port name="action_args"/>
+      <input_port name="station_args"/>
+      <input_port name="current_dist"/>
+      <input_port name="servo_cancel_flag"/>
+      <input_port name="teaching_args"/>
+      <input_port name="shelf_name_by_dispatch"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="Lift"
+            editable="true">
+      <input_port name="cmd"/>
+      <input_port name="lift_target_position"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="LoadTemplate"
+            editable="true">
+      <input_port name="station_args"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="NavStop"
+            editable="true">
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="NoticeScheduleAndWait"
+            editable="true">
+      <input_port name="wait_timeout"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="RaiseException"
+            editable="true">
+      <input_port name="error_id"/>
+      <input_port name="error_level"/>
+      <input_port name="error_name"/>
+      <input_port name="error_details"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="ReportSchedule"
+            editable="true">
+      <input_port name="schedule_report_action"/>
+      <input_port name="schedule_report_extra_data"/>
+      <output_port name="errorMsg"
+                   default="{errorMsg}"/>
+      <output_port name="schedule_report_result"/>
+    </Action>
+    <Action ID="ResetEStopStatusCheck"
+            editable="true">
+      <input_port name="station_args"/>
+      <input_port name="dist_to_target"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="SaySomething"
+            editable="true">
+      <input_port name="message"/>
+    </Action>
+    <Action ID="SelectServoMode"
+            editable="true">
+      <input_port name="action_args"/>
+      <output_port name="servo_mode"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="ServoStatus"
+            editable="true">
+      <output_port name="errorMsg"/>
+      <output_port name="servo_status"/>
+    </Action>
+    <Action ID="ShelfServo"
+            editable="true">
+      <input_port name="action_args"/>
+      <input_port name="current_dist"/>
+      <input_port name="shelf_servo_teaching_result"/>
+      <input_port name="station_args"/>
+      <output_port name="errorMsg"/>
+      <input_port name="servo_cancel_flag"/>
+    </Action>
+    <Action ID="SpeedManager"
+            editable="true">
+      <input_port name="highest_priority_speed"/>
+      <input_port name="reset_priority"/>
+      <output_port name="errorMsg"/>
+    </Action>
+    <Action ID="StartDistCheck"
+            editable="true">
+      <input_port name="min_threshold"/>
+      <input_port name="max_threshold"/>
+      <output_port name="errorMsg"/>
+      <output_port name="current_dist"/>
+    </Action>
+    <Action ID="VisualServo"
+            editable="true">
+      <input_port name="action_args"/>
+      <input_port name="station_args"/>
+      <input_port name="servo_cancel_flag"/>
+      <input_port name="target_position_type"/>
+      <output_port name="errorMsg"/>
+    </Action>
+  </TreeNodesModel>
+
+</root>
